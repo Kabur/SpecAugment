@@ -40,13 +40,13 @@ import librosa.display
 import math
 import numpy as np
 import random
+random.seed(12345)
 import matplotlib
 # matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 
-def spec_augment(mel_spectrogram, time_warping_para=80, frequency_masking_para=27,
-                 time_masking_para=100, frequency_mask_num=1, time_mask_num=1):
+def spec_augment(spectogram, setting="swb_mild"):
     """Spec augmentation Calculation Function.
 
     'SpecAugment' have 3 steps for audio data augmentation.
@@ -69,37 +69,80 @@ def spec_augment(mel_spectrogram, time_warping_para=80, frequency_masking_para=2
     # Returns
       mel_spectrogram(numpy array): warped and masked mel spectrogram.
     """
-    v = mel_spectrogram.shape[0]
-    tau = mel_spectrogram.shape[1]
+# Policy | W  | F  | m_F |  T  |  p  | m_T
+# SM     | 40 | 15 |  2  |  70 | 0.2 | 2
+# -----------------------------------------
+# SS     | 40 | 27 |  2  |  70 | 0.2 | 2
+    if setting == "swb_mild":
+        time_warping_para=40
+        frequency_masking_para=15
+        frequency_mask_num=2
+        time_masking_para=70
+        time_mask_bound = 0.2
+        time_mask_num=2
+    elif setting == "swb_strong":
+        time_warping_para=40
+        frequency_masking_para=27
+        frequency_mask_num=2
+        time_masking_para=70
+        time_mask_bound = 0.2
+        time_mask_num=2
+    elif setting == "libri_mild":
+        time_warping_para=80
+        frequency_masking_para=27
+        time_masking_para=100
+        frequency_mask_num=1
+        time_mask_bound = 1
+        time_mask_num=1
+    elif setting == "libri_strong":
+        time_warping_para=80
+        frequency_masking_para=27
+        time_masking_para=100
+        frequency_mask_num=2
+        time_mask_bound = 1
+        time_mask_num=2
+    else:
+        print("Unrecognized specaugment setting, quitting...")
+        exit()
+
+
+    v = spectogram.shape[0]
+    tau = spectogram.shape[1]
+    spect_mean = np.mean(spectogram)
 
     # Step 1 : Time warping (TO DO...)
-    warped_mel_spectrogram = np.zeros(mel_spectrogram.shape,
-                                      dtype=mel_spectrogram.dtype)
+    # augmented_spectrogram = np.zeros(spectogram.shape, dtype=spectogram.dtype)
+    #
+    # for i in range(v):
+    #     for j in range(tau):
+    #         offset_x = 0
+    #         offset_y = 0
+    #         if i + offset_y < v:
+    #             augmented_spectrogram[i, j] = spectogram[(i + offset_y) % v, j]
+    #         else:
+    #             augmented_spectrogram[i, j] = spectogram[i, j]
 
-    for i in range(v):
-        for j in range(tau):
-            offset_x = 0
-            offset_y = 0
-            if i + offset_y < v:
-                warped_mel_spectrogram[i, j] = mel_spectrogram[(i + offset_y) % v, j]
-            else:
-                warped_mel_spectrogram[i, j] = mel_spectrogram[i, j]
+    augmented_spectrogram = spectogram
 
     # Step 2 : Frequency masking
     for i in range(frequency_mask_num):
         f = np.random.uniform(low=0.0, high=frequency_masking_para)
         f = int(f)
         f0 = random.randint(0, v - f)
-        warped_mel_spectrogram[f0:f0 + f, :] = 0
+        # augmented_spectrogram[f0:f0 + f, :] = 0
+        augmented_spectrogram[f0:f0 + f, :] = spect_mean
 
     # Step 3 : Time masking
     for i in range(time_mask_num):
-        t = np.random.uniform(low=0.0, high=time_masking_para)
+        t = np.random.uniform(low=0.0, high=min(time_masking_para, time_mask_bound * tau))
+        # t = np.random.uniform(low=0.0, high=time_masking_para)
         t = int(t)
         t0 = random.randint(0, tau - t)
-        warped_mel_spectrogram[:, t0:t0 + t] = 0
+        # augmented_spectrogram[:, t0:t0 + t] = 0
+        augmented_spectrogram[:, t0:t0 + t] = spect_mean
 
-    return warped_mel_spectrogram
+    # print("augmenting spectogram eyy")
+    return augmented_spectrogram
 
 
 def visualization_spectrogram(mel_spectrogram, title):
